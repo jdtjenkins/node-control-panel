@@ -10,6 +10,9 @@
   "scripts": {
     "start": "cross-env NODE_ENV=development node app/server/index.js"
   },
+  "husky": {
+	  "pre-commit": "cd app && npm run build"
+  },
   "dependencies": {
     "axios": "^0.19.0",
     "cross-env": "^5.2.0",
