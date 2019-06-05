@@ -1,14 +1,17 @@
 const express = require('express');
+const { join } = require('path');
 const app = express();
 
-app.use(express.static(`${ __dirname }/app/dist`))
+app.use(express.static(join(__dirname, `../app/dist`)));
 
 app.get('*', (req, res) => {
-	res.sendFile(`${ __dirname }/app/dist/index.html`, {
-		root: `${ __dirname }/app/dist/`,
+	res.sendFile(join(__dirname, `../app/dist/index.html`), {
+		root: join(__dirname, `../app/dist`),
 	});
 })
 
-app.listen(1337, () => {
-	console.log('Listening on 1337...');
-});
+exports.run = () => {
+	app.listen(1337, () => {
+		console.log('Listening on 1337...');
+	});
+}
