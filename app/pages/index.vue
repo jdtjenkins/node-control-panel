@@ -1,16 +1,28 @@
 <template>
   <section class="container">
     <h1>Hello there</h1>
+	<input type="text" @blur="sendUrl">
   </section>
 </template>
 
 <script>
-import Logo from '~/components/Logo.vue'
+const ws = new WebSocket('ws://localhost:1338');
 
 export default {
-  components: {
-    Logo
-  }
+	methods: {
+		sendUrl(e) {
+			const input = e.target.value;
+			ws.send(input)
+		},
+	},
+	data() {
+		return {
+			folderList: [],
+		}
+	},
+	created() {
+		//const ws = new WebSocket('ws://localhost:1338');
+	},
 }
 </script>
 
@@ -22,6 +34,7 @@ export default {
   justify-content: center;
   align-items: center;
   text-align: center;
+  flex-direction: column;
 }
 
 .title {
