@@ -8,10 +8,11 @@
     "ncp": "cli/index.js"
   },
   "scripts": {
-    "start": "cross-env NODE_ENV=development node app/server/index.js"
+    "start": "cross-env NODE_ENV=development node app/server/index.js",
+	"build": "cd app && npm run build"
   },
   "husky": {
-	  "pre-commit": "cd app && npm run build"
+	  "pre-commit": "npm run build"
   },
   "dependencies": {
     "axios": "^0.19.0",
