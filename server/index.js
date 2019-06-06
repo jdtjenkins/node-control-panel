@@ -11,6 +11,9 @@ const WSServerPort = 1338;
 
 const asyncGlob = promisify(glob);
 const asyncReaddir = promisify(fs.readdir);
+const asyncReadFile = promisify(fs.readFile);
+
+const projectCache = {}
 
 const wss = new WebSocket.Server({
 	port: WSServerPort,
@@ -31,15 +34,53 @@ const run = () => {
 
 	wss.on('connection', function connection(ws) {
 		ws.on('message', async message => {
-			try {
-				const folders = await asyncGlob(resolve(message, '*/package.json'));
-				console.log(resolve(message, '*/package.json'), folders)
-				ws.send(folders);
-			} catch (e) {
-				console.log(e);
+			message = JSON.parse(message);
+
+			switch(message.action){
+				case 'search':
+					methods.search(ws, message.payload)
+					break;
 			}
 		});
 	});
+}
+
+const methods = {
+	async search(ws, folderPath) {
+		try {
+			const folders = await asyncGlob(resolve(folderPath, '*/package.json'));
+
+			for (let packageJsonPath of folders){
+				const folderPath = packageJsonPath.replace('/package.json', '')
+
+				if (!projectCache[packageJsonPath]) {
+					let packageJson = await asyncReadFile(packageJsonPath);
+
+					packageJson = JSON.parse(packageJson);
+
+					projectCache[packageJsonPath] = {
+						folderPath: folderPath,
+						projectName: folderPath.split('/').pop(),
+						packageJson,
+					}
+				}
+
+				packageJsonPath = folderPath;
+			}
+
+			const obj = {
+				action: 'searchResult',
+				payload: {
+					searchPath: folderPath,
+					folders: folders.map(folder => projectCache[folder]),
+				}
+			}
+
+			ws.send(JSON.stringify(obj));
+		} catch (e) {
+			console.log(e);
+		}
+	},
 }
 
 if (process.env.NODE_ENV === 'development'){
