@@ -7,21 +7,32 @@
 				{{ folder.projectName }}
 				<small>{{ folder.folderPath }}</small>
 			</h1>
+			<br>
+			<toggle-button v-model="folder.launched">
+				Launch server
+			</toggle-button>
 		</div>
 	</div>
   </section>
 </template>
 
 <script>
+const ToggleButton = require('../components/toggle-button').default;
 const ws = new WebSocket('ws://localhost:1338');
 
 export default {
+	components: {
+		ToggleButton,
+	},
 	methods: {
 		sendUrl() {
 			ws.send(JSON.stringify({
 				action: 'search',
 				payload: this.search,
 			}));
+		},
+		async launchServer(folderPath) {
+			this.folderList.filter(({ folderPath }) => folderPath === folderPath).launched = true;
 		},
 	},
 	data() {
@@ -42,16 +53,6 @@ export default {
 
 				switch (message.action){
 					case 'searchResult':
-						// this.folderList = [
-						// 	...this.folderList,
-						// 	...message.payload.folders.map(folder => {
-						// 		return {
-						// 			...folder,
-						// 			searchTerm: this.search,
-						// 		}
-						// 	})
-						// ];
-						console.log(message.payload.folders.length);
 						for (let folder of message.payload.folders){
 							if (!this.folderList.find(({ folderPath }) => folderPath === folder.folderPath)) {
 								this.folderList = [
@@ -59,6 +60,7 @@ export default {
 									{
 										...folder,
 										searchTerm: this.search,
+										launched: false,
 									},
 								];
 							}
