@@ -7,10 +7,21 @@
 				{{ folder.projectName }}
 				<small>{{ folder.folderPath }}</small>
 			</h1>
-			<br>
-			<toggle-button v-model="folder.launched">
-				Launch server
-			</toggle-button>
+            <ul>
+                <li v-for="script in folder.packageJson.scripts">
+                    <toggle-button
+                        :value="script.launched"
+                        @input="toggleScript(folder.folderPath, script.name, script.launched)"
+                        >
+                        <pre>{{ script.name }}</pre>
+                    </toggle-button>
+                    <div class="stdout">
+                        <pre v-for="stdout in script.stdout">
+                            {{ stdout }}
+                        </pre>
+                    </div>
+                </li>
+            </ul>
 		</div>
 	</div>
   </section>
@@ -31,14 +42,33 @@ export default {
 				payload: this.search,
 			}));
 		},
-		async launchServer(folderPath) {
-			this.folderList.filter(({ folderPath }) => folderPath === folderPath).launched = true;
-		},
+		async toggleScript(folderPath, scriptName, launched) {
+            if (!launched) {
+                ws.send(JSON.stringify({
+                    action: 'startScript',
+                    payload: {
+                        project: folderPath,
+                        scriptName,
+                    },
+                }));
+
+            } else {
+                ws.send(JSON.stringify({
+                    action: 'stopScript',
+                    payload: {
+                        project: folderPath,
+                        scriptName,
+                    },
+                }));
+            }
+
+            this.folderList.find(project => project.folderPath === folderPath).packageJson.scripts[scriptName].launched = !launched;
+        },
 	},
 	data() {
 		return {
 			folderList: [],
-			search: '/Users/jacob/www',
+			search: `c:/node/projects`,
 		}
 	},
 	computed: {
@@ -49,23 +79,38 @@ export default {
 	created() {
 		ws.onopen = () => {
 			ws.onmessage = message => {
-				message = JSON.parse(message.data);
+				const { action, payload } = JSON.parse(message.data);
 
-				switch (message.action){
+				switch (action){
 					case 'searchResult':
-						for (let folder of message.payload.folders){
+						for (let folder of payload.folders){
 							if (!this.folderList.find(({ folderPath }) => folderPath === folder.folderPath)) {
-								this.folderList = [
+                                for (let key in folder.packageJson.scripts) {
+                                    folder.packageJson.scripts[key] = {
+                                        script: folder.packageJson.scripts[key],
+                                        name: key,
+                                        launched: false,
+                                        stdout: [],
+                                        stderr: [],
+                                    }
+                                }
+
+                                this.folderList = [
 									...this.folderList,
 									{
 										...folder,
 										searchTerm: this.search,
-										launched: false,
 									},
 								];
 							}
 						}
 						break;
+                    case 'childStdout':
+                        this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(payload.stdout);
+                        break;
+                    case 'childStop':
+                        console.log(payload)
+                        break;
 				}
 
 			};
@@ -123,6 +168,7 @@ export default {
 	.card h1 {
 		font-size: 1.5rem;
 		color: #333;
+        margin-bottom: 1rem;
 	}
 
 	.card h1 small {
@@ -135,5 +181,15 @@ export default {
 	.card h1, .card h1 small {
 		word-wrap: break-word;
 	}
+
+    .card ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .card ul li {
+        margin-bottom: 0.5rem;
+    }
 
 </style>

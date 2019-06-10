@@ -1,11 +1,13 @@
 <template lang="html">
 	<div class="toggle-button">
 		<slot />
-		<div
+		<input
+			type="checkbox"
 			class="toggle"
+			:value="value"
 			:class="value ? 'checked' : 'not-checked'"
-			@click="toggle"
-			></div>
+			@change="toggle"
+			>
 	</div>
 </template>
 
@@ -31,6 +33,7 @@
 	}
 
 	.toggle {
+		appearance: none;
 		width: 50px;
 		height: 25px;
 		background: #eee;

@@ -1,4 +1,6 @@
-#! /usr/local/bin/node
+#!/usr/bin/env node
+'use strict';
+
 const { join } = require('path');
 const { run } = require(join(__dirname, `../server`));
 

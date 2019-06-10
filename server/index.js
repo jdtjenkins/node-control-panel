@@ -4,6 +4,7 @@ const WebSocket = require('ws');
 const { promisify } = require('util');
 const glob = require('glob');
 const fs = require('fs');
+const { spawn, exec } = require('child_process');
 
 const app = express();
 const HTTPServerPort = 1337;
@@ -12,8 +13,10 @@ const WSServerPort = 1338;
 const asyncGlob = promisify(glob);
 const asyncReaddir = promisify(fs.readdir);
 const asyncReadFile = promisify(fs.readFile);
+const asyncExec = promisify(exec);
 
 const projectCache = {}
+const childProcessCache = {}
 
 const wss = new WebSocket.Server({
 	port: WSServerPort,
@@ -38,7 +41,13 @@ const run = () => {
 
 			switch(message.action){
 				case 'search':
-					methods.search(ws, message.payload)
+					methods.search(ws, message.payload);
+					break;
+				case 'startScript':
+					methods.startScript(ws, message.payload);
+					break;
+				case 'stopScript':
+					methods.stopScript(ws, message.payload);
 					break;
 			}
 		});
@@ -81,6 +90,63 @@ const methods = {
 			console.log(e);
 		}
 	},
+	async startScript(ws, payload) {
+		try {
+			const child = spawn(/^win/.test(process.platform) ? 'npm.cmd' : 'npm', ['run',  payload.scriptName], {
+				cwd: payload.project,
+			});
+
+			child.stdout.on('data', data => {
+				ws.send(JSON.stringify({
+					action: 'childStdout',
+					payload: {
+						project: payload.project,
+						scriptName: payload.scriptName,
+						stdout: data.toString('utf8'),
+					}
+				}));
+			})
+
+			child.stderr.on('data', data => {
+				ws.send(JSON.stringify({
+					action: 'childStderr',
+					payload: {
+						project: payload.project,
+						scriptName: payload.scriptName,
+						stderr: data.toString('utf8'),
+					}
+				}));
+			})
+
+			child.on('close', code => {
+				ws.send(JSON.stringify({
+					action: 'childStop',
+					payload: {
+						project: payload.project,
+						scriptName: payload.scriptName,
+						code: code.toString('utf8'),
+					}
+				}));
+
+				methods.stopScript(ws, payload);
+			})
+
+			childProcessCache[payload.project] = {
+				[payload.scriptName]: child,
+			}
+		} catch (e) {
+			console.log(e);
+		}
+	},
+	async stopScript(ws, payload) {
+		setInterval(() => {
+			console.log(childProcessCache[payload.project][payload.scriptName].pid);
+
+		}, 1000);
+		// process.kill(childProcessCache[payload.project][payload.scriptName].pid, 'SIGINT')
+		// childProcessCache[payload.project][payload.scriptName].kill('SIGINT');
+		// childProcessCache[payload.project][payload.scriptName] = null;
+	}
 }
 
 if (process.env.NODE_ENV === 'development'){

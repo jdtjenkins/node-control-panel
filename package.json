@@ -5,7 +5,7 @@
   "author": "Jacob Jenkins",
   "private": true,
   "bin": {
-    "ncp": "cli/index.js"
+    "ncp": "./cli/index.js"
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon server/index.js",
