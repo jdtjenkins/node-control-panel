@@ -9,7 +9,7 @@ Tired of the command line? Want to run multiple projects at the same time easily
 ## To run
 `ncp start`
 
-This will launch the project on port `3000`.
+This will launch the project on port `1337`.
 
 ## To use
 Simply type a local directory path into the search bar at the top. This will search all immediate subfolders of that directory for `package.json` files, and will return all projects and scripts to run.
