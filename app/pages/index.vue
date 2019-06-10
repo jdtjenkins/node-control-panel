@@ -15,7 +15,10 @@
                         >
                         <pre>{{ script.name }}</pre>
                     </toggle-button>
-                    <div class="stdout">
+                    <div
+						class="stdout"
+						v-bind:class="{active: script.stdout.length > 0}"
+						>
                         <pre v-for="stdout in script.stdout">
                             {{ stdout }}
                         </pre>
@@ -68,7 +71,7 @@ export default {
 	data() {
 		return {
 			folderList: [],
-			search: `c:/node/projects`,
+			search: ``,
 		}
 	},
 	computed: {
@@ -108,8 +111,11 @@ export default {
                     case 'childStdout':
                         this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(payload.stdout);
                         break;
+					case 'childStderr':
+                        this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(payload.stderr);
+                        break;
                     case 'childStop':
-                        console.log(payload)
+                        this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(`Exited with code: ${ payload.code }`);
                         break;
 				}
 
@@ -147,6 +153,7 @@ export default {
 
 	.cards {
 		width: 100%;
+		max-width: 100%;
 		padding: 0 1rem;
 		display: flex;
 		flex-wrap: wrap;
@@ -163,6 +170,8 @@ export default {
 		flex-grow: 1;
 		flex-shrink: 1;
 		flex-basis: 1;
+		max-width: 100%;
+		overflow: scroll;
 	}
 
 	.card h1 {
@@ -192,4 +201,22 @@ export default {
         margin-bottom: 0.5rem;
     }
 
+	.card .stdout {
+		background-color: #0c1022;
+		border-radius: 7px;
+		box-shadow: 0 0 2px #333 inset;
+		max-height: 0;
+		max-width: 100%;
+		overflow: scroll;
+		padding: 0;
+		color: #fff;
+		transition: all 0.2s ease;
+		margin: 0;
+	}
+
+	.card .stdout.active {
+		max-height: 250px;
+		padding: 0.75rem;
+		margin: 0.75rem 0;
+	}
 </style>

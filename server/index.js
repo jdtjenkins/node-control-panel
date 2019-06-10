@@ -124,11 +124,9 @@ const methods = {
 					payload: {
 						project: payload.project,
 						scriptName: payload.scriptName,
-						code: code.toString('utf8'),
+						code,
 					}
 				}));
-
-				methods.stopScript(ws, payload);
 			})
 
 			childProcessCache[payload.project] = {
@@ -139,15 +137,37 @@ const methods = {
 		}
 	},
 	async stopScript(ws, payload) {
-		setInterval(() => {
-			console.log(childProcessCache[payload.project][payload.scriptName].pid);
-
-		}, 1000);
-		// process.kill(childProcessCache[payload.project][payload.scriptName].pid, 'SIGINT')
-		// childProcessCache[payload.project][payload.scriptName].kill('SIGINT');
-		// childProcessCache[payload.project][payload.scriptName] = null;
+		if (/^win/.test(process.platform)){
+			process.kill(childProcessCache[payload.project][payload.scriptName].pid, 'SIGINT');
+			await asyncExec(`taskkill /PID ${ childProcessCache[payload.project][payload.scriptName].pid } /F`);
+		} else {
+			console.log(`killing ${ childProcessCache[payload.project][payload.scriptName].pid }`)
+			process.kill(childProcessCache[payload.project][payload.scriptName].pid, 'SIGINT');
+			childProcessCache[payload.project][payload.scriptName].kill('SIGINT');
+			childProcessCache[payload.project][payload.scriptName] = null;
+		}
 	}
 }
+
+process.on('exit', async () => {
+	const pids = [];
+	for (let project in childProcessCache) {
+		for (let script in project) {
+			pids.push(script.pid)
+		}
+	}
+
+	console.log(pids);
+
+	for (pid of pids){
+		if (/^win/.test(process.platform)){
+			process.kill(pid, 'SIGINT');
+			await asyncExec(`taskkill /PID ${ pid } /F`);
+		} else {
+			process.kill(pid, 'SIGINT');
+		}
+	}
+});
 
 if (process.env.NODE_ENV === 'development'){
 	run();
