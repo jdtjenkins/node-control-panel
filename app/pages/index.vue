@@ -116,6 +116,7 @@ export default {
                         break;
                     case 'childStop':
                         this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(`Exited with code: ${ payload.code }`);
+						this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].launched = false;
                         break;
 				}
 
