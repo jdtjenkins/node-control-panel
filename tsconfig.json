@@ -1,0 +1,24 @@
+{
+	"compilerOptions": {
+		"target": "es5",
+		"module": "commonjs",
+		"lib": ["es6", "es2015", "dom"],
+		"declaration": true,
+		"rootDir": ".",
+		"strict": true,
+		"baseUrl": "./",
+		"types": ["node"],
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"moduleResolution": "node",
+		"sourceMap": true
+	},
+	"files": [
+		"./server/index.ts",
+		"./cli/index.ts"
+	],
+	"exclude": [
+        "node_modules",
+        "**/*.spec.ts"
+    ]
+}

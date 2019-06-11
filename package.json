@@ -8,8 +8,12 @@
     "ncp": "./cli/index.js"
   },
   "scripts": {
-    "dev": "cross-env NODE_ENV=development nodemon server/index.js",
-    "build": "cd app && npm run build"
+    "dev": "cross-env NODE_ENV=development concurrently \"npm:watch-ts\" \"npm:watch-nodemon\"",
+	"watch-ts": "tsc -p tsconfig.json -w",
+	"watch-nodemon": "nodemon server/index.js",
+	"build": "npm run build-nuxt && npm run build-typescript",
+    "build-nuxt": "cd app && npm run build",
+    "build-typescript": "npx tsc -p tsconfig.json"
   },
   "husky": {
     "hooks": {
@@ -27,7 +31,12 @@
     "ws": "^7.0.0"
   },
   "devDependencies": {
+    "@types/express": "^4.17.0",
+    "@types/glob": "^7.1.1",
+    "@types/ws": "^6.0.1",
+    "concurrently": "^4.1.0",
     "husky": "^2.3.0",
-    "nodemon": "^1.19.1"
+    "nodemon": "^1.19.1",
+    "typescript": "^3.5.1"
   }
 }
