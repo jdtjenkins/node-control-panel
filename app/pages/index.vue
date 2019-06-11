@@ -92,7 +92,7 @@ export default {
                                     folder.packageJson.scripts[key] = {
                                         script: folder.packageJson.scripts[key],
                                         name: key,
-                                        launched: false,
+                                        launched: folder.packageJson.scripts[key] === true ? true : false,
                                         stdout: [],
                                         stderr: [],
                                     }

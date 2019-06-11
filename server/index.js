@@ -5,6 +5,7 @@ const { promisify } = require('util');
 const glob = require('glob');
 const fs = require('fs');
 const { spawn, exec } = require('child_process');
+const open = require('open');
 
 const app = express();
 const HTTPServerPort = 1337;
@@ -30,10 +31,12 @@ app.get('*', (req, res) => {
 	});
 })
 
-const run = () => {
+const run = async () => {
 	app.listen(HTTPServerPort, () => {
 		console.log(`Listening on ${ HTTPServerPort }...`);
 	});
+
+	await open(`http://localhost:${ HTTPServerPort }`);
 
 	wss.on('connection', function connection(ws) {
 		ws.on('message', async message => {
@@ -68,9 +71,15 @@ const methods = {
 					packageJson = JSON.parse(packageJson);
 
 					projectCache[packageJsonPath] = {
-						folderPath: folderPath,
+						folderPath,
 						projectName: folderPath.split('/').pop(),
 						packageJson,
+					}
+				}
+
+				for (let script in projectCache[packageJsonPath].packageJson.scripts) {
+					if (childProcessCache[folderPath] && childProcessCache[folderPath][script]) {
+						projectCache[packageJsonPath].packageJson.scripts[script] = true;
 					}
 				}
 
@@ -92,6 +101,10 @@ const methods = {
 	},
 	async startScript(ws, payload) {
 		try {
+			if (childProcessCache[payload.project] && childProcessCache[payload.project][payload.scriptName]){
+				return;
+			}
+
 			const child = spawn(/^win/.test(process.platform) ? 'npm.cmd' : 'npm', ['run',  payload.scriptName], {
 				cwd: payload.project,
 			});
@@ -141,7 +154,6 @@ const methods = {
 			process.kill(childProcessCache[payload.project][payload.scriptName].pid, 'SIGINT');
 			await asyncExec(`taskkill /PID ${ childProcessCache[payload.project][payload.scriptName].pid } /F`);
 		} else {
-			console.log(`killing ${ childProcessCache[payload.project][payload.scriptName].pid }`)
 			process.kill(childProcessCache[payload.project][payload.scriptName].pid, 'SIGINT');
 			childProcessCache[payload.project][payload.scriptName].kill('SIGINT');
 			childProcessCache[payload.project][payload.scriptName] = null;
@@ -156,8 +168,6 @@ process.on('exit', async () => {
 			pids.push(script.pid)
 		}
 	}
-
-	console.log(pids);
 
 	for (pid of pids){
 		if (/^win/.test(process.platform)){
