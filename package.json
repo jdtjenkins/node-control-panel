@@ -8,7 +8,7 @@
     "ncp": "./cli/index.js"
   },
   "scripts": {
-    "dev": "cross-env NODE_ENV=development concurrently \"npm:watch-ts\" \"npm:watch-nodemon\"",
+    "dev": "cross-env NODE_ENV=development concurrently \"npm:watch-ts\" \"npm:watch-nodemon\" \"cd app && npm run dev\"",
 	"watch-ts": "tsc -p tsconfig.json -w",
 	"watch-nodemon": "nodemon server/index.js",
 	"build": "npm run build-nuxt && npm run build-typescript",
