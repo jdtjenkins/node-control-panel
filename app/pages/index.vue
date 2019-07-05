@@ -32,22 +32,83 @@
 
 <script>
 const ToggleButton = require('../components/toggle-button').default;
-const ws = new WebSocket('ws://localhost:1338');
 
 export default {
 	components: {
 		ToggleButton,
 	},
 	methods: {
+		newSocket() {
+			this.socket = new WebSocket('ws://localhost:1338');
+
+			this.socket.onopen = () => {
+				console.log('[NCP] Socket open');
+
+				this.socket.onmessage = message => {
+					const { action, payload } = JSON.parse(message.data);
+					console.log(payload)
+
+					switch (action){
+						case 'init':
+							this.folderList = [
+								...this.folderList,
+								...payload,
+							];
+							break;
+						case 'searchResult':
+							for (let folder of payload.folders){
+								if (!this.folderList.find(({ folderPath }) => folderPath === folder.folderPath)) {
+									for (let key in folder.packageJson.scripts) {
+										folder.packageJson.scripts[key] = {
+											script: folder.packageJson.scripts[key],
+											name: key,
+											launched: folder.packageJson.scripts[key] === true ? true : false,
+											stdout: [],
+											stderr: [],
+										}
+									}
+
+									this.folderList = [
+										...this.folderList,
+										{
+											...folder,
+											searchTerm: this.search,
+										},
+									];
+								}
+							}
+							break;
+						case 'projects':
+							break;
+						case 'childStdout':
+							this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(payload.stdout);
+							break;
+						case 'childStderr':
+							this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(payload.stderr);
+							break;
+						case 'childStop':
+							this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(`Exited with code: ${ payload.code }`);
+							this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].launched = false;
+							break;
+					}
+
+				};
+
+				this.socket.onclose = () => {
+					console.log('[NCP] Socket closed');
+					setTimeout(this.newSocket, 500);
+				}
+			}
+		},
 		sendUrl() {
-			ws.send(JSON.stringify({
+			this.socket.send(JSON.stringify({
 				action: 'search',
 				payload: this.search,
 			}));
 		},
 		async toggleScript(folderPath, scriptName, launched) {
             if (!launched) {
-                ws.send(JSON.stringify({
+                this.socket.send(JSON.stringify({
                     action: 'startScript',
                     payload: {
                         project: folderPath,
@@ -56,7 +117,7 @@ export default {
                 }));
 
             } else {
-                ws.send(JSON.stringify({
+                this.socket.send(JSON.stringify({
                     action: 'stopScript',
                     payload: {
                         project: folderPath,
@@ -72,6 +133,7 @@ export default {
 		return {
 			folderList: [],
 			search: ``,
+			socket: null,
 		}
 	},
 	computed: {
@@ -80,48 +142,8 @@ export default {
 		},
 	},
 	created() {
-		ws.onopen = () => {
-			ws.onmessage = message => {
-				const { action, payload } = JSON.parse(message.data);
-
-				switch (action){
-					case 'searchResult':
-						for (let folder of payload.folders){
-							if (!this.folderList.find(({ folderPath }) => folderPath === folder.folderPath)) {
-                                for (let key in folder.packageJson.scripts) {
-                                    folder.packageJson.scripts[key] = {
-                                        script: folder.packageJson.scripts[key],
-                                        name: key,
-                                        launched: folder.packageJson.scripts[key] === true ? true : false,
-                                        stdout: [],
-                                        stderr: [],
-                                    }
-                                }
-
-                                this.folderList = [
-									...this.folderList,
-									{
-										...folder,
-										searchTerm: this.search,
-									},
-								];
-							}
-						}
-						break;
-                    case 'childStdout':
-                        this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(payload.stdout);
-                        break;
-					case 'childStderr':
-                        this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(payload.stderr);
-                        break;
-                    case 'childStop':
-                        this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].stdout.push(`Exited with code: ${ payload.code }`);
-						this.folderList.find(project => project.folderPath === payload.project).packageJson.scripts[payload.scriptName].launched = false;
-                        break;
-				}
-
-			};
-		}
+		console.log('[NCP] Welcome to the NCP Dev Console! Feel free to look around, and enjoy yourself! 👋');
+		this.newSocket();
 	},
 }
 </script>

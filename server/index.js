@@ -1,4 +1,15 @@
 "use strict";
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -73,6 +84,18 @@ app.get('*', function (_a) {
         root: path_1.join(__dirname, "../app/dist"),
     });
 });
+var scriptRunning = function (projectPath, scriptName) {
+    return {
+        // @ts-ignore
+        command: projectCache[projectPath].packageJson.scripts[scriptName],
+        running: childProcessCache[projectPath][scriptName] ? true : false,
+    };
+};
+var ProjectScriptProxy = function (obj) { return new Proxy(obj, {
+    get: function (target, name) {
+        return __assign({}, target);
+    }
+}); };
 var run = function () { return __awaiter(_this, void 0, void 0, function () {
     var _this = this;
     return __generator(this, function (_a) {
@@ -88,6 +111,10 @@ var run = function () { return __awaiter(_this, void 0, void 0, function () {
                 _a.label = 2;
             case 2:
                 wss.on('connection', function (ws) {
+                    ws.send(JSON.stringify({
+                        action: 'init',
+                        payload: childProcessCache,
+                    }));
                     ws.on('message', function (message) { return __awaiter(_this, void 0, void 0, function () {
                         return __generator(this, function (_a) {
                             message = JSON.parse(message);
@@ -112,59 +139,50 @@ var run = function () { return __awaiter(_this, void 0, void 0, function () {
 }); };
 exports.run = run;
 var methods = {
-    search: function (ws, folderPath) {
+    search: function (ws, searchPath) {
         return __awaiter(this, void 0, void 0, function () {
-            var folders, _i, folders_1, packageJsonPath, folderPath_1, packageJson, script, obj, e_1;
+            var projects, _i, projects_1, packageJsonPath, projectPath, packageJsonRaw, packageJsonParsed, obj, e_1;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
-                        _a.trys.push([0, 7, , 8]);
-                        return [4 /*yield*/, asyncGlob(path_1.resolve(folderPath, '*/package.json'))];
+                        _a.trys.push([0, 6, , 7]);
+                        return [4 /*yield*/, asyncGlob(path_1.resolve(searchPath, '*/package.json'))];
                     case 1:
-                        folders = _a.sent();
-                        _i = 0, folders_1 = folders;
+                        projects = _a.sent();
+                        _i = 0, projects_1 = projects;
                         _a.label = 2;
                     case 2:
-                        if (!(_i < folders_1.length)) return [3 /*break*/, 6];
-                        packageJsonPath = folders_1[_i];
-                        folderPath_1 = packageJsonPath.replace('/package.json', '');
+                        if (!(_i < projects_1.length)) return [3 /*break*/, 5];
+                        packageJsonPath = projects_1[_i];
+                        projectPath = packageJsonPath.replace('/package.json', '');
                         if (!!projectCache[packageJsonPath]) return [3 /*break*/, 4];
                         return [4 /*yield*/, asyncReadFile(packageJsonPath, 'utf-8')];
                     case 3:
-                        packageJson = _a.sent();
-                        packageJson = JSON.parse(packageJson);
+                        packageJsonRaw = _a.sent();
+                        packageJsonParsed = JSON.parse(packageJsonRaw);
                         projectCache[packageJsonPath] = {
-                            folderPath: folderPath_1,
-                            projectName: folderPath_1.split('/').pop(),
-                            packageJson: packageJson,
+                            projectName: projectPath.split('/').pop(),
+                            projectPath: projectPath,
+                            packageJson: packageJsonParsed,
                         };
                         _a.label = 4;
                     case 4:
-                        for (script in projectCache[packageJsonPath].packageJson.scripts) {
-                            if (childProcessCache[folderPath_1] && childProcessCache[folderPath_1][script]) {
-                                projectCache[packageJsonPath].packageJson.scripts[script] = true;
-                            }
-                        }
-                        packageJsonPath = folderPath_1;
-                        _a.label = 5;
-                    case 5:
                         _i++;
                         return [3 /*break*/, 2];
-                    case 6:
+                    case 5:
                         obj = {
-                            action: 'searchResult',
+                            action: 'projects',
                             payload: {
-                                searchPath: folderPath,
-                                folders: folders.map(function (folder) { return projectCache[folder]; }),
+                                projects: projects.map(function (project) { return projectCache[project]; }),
                             }
                         };
                         ws.send(JSON.stringify(obj));
-                        return [3 /*break*/, 8];
-                    case 7:
+                        return [3 /*break*/, 7];
+                    case 6:
                         e_1 = _a.sent();
                         console.log(e_1);
-                        return [3 /*break*/, 8];
-                    case 8: return [2 /*return*/];
+                        return [3 /*break*/, 7];
+                    case 7: return [2 /*return*/];
                 }
             });
         });
@@ -182,6 +200,7 @@ var methods = {
                         cwd: payload.project,
                     });
                     child.stdout.on('data', function (data) {
+                        childProcessCache[payload.project][payload.scriptName].stdout.push(data.toString('utf8'));
                         ws.send(JSON.stringify({
                             action: 'childStdout',
                             payload: {
@@ -192,6 +211,7 @@ var methods = {
                         }));
                     });
                     child.stderr.on('data', function (data) {
+                        childProcessCache[payload.project][payload.scriptName].stderr.push(data.toString('utf8'));
                         ws.send(JSON.stringify({
                             action: 'childStderr',
                             payload: {
@@ -212,7 +232,11 @@ var methods = {
                         }));
                     });
                     childProcessCache[payload.project] = (_a = {},
-                        _a[payload.scriptName] = child,
+                        _a[payload.scriptName] = {
+                            child: child,
+                            stdout: [],
+                            stderr: [],
+                        },
                         _a);
                 }
                 catch (e) {

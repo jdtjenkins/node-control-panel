@@ -4,7 +4,7 @@ import WebSocket from 'ws';
 import { promisify } from 'util';
 import glob from 'glob';
 import * as fs from 'fs';
-import { spawn, exec } from 'child_process';
+import { spawn, exec, ChildProcess } from 'child_process';
 import open from 'open';
 
 const app = express();
@@ -17,8 +17,9 @@ const asyncReadFile = promisify(fs.readFile);
 const asyncExec = promisify(exec);
 
 const projectCache: {
-	[projectPath: string]: any;
+	[projectPath: string]: Project;
 } = {}
+
 const childProcessCache: {
 	[projectPath: string]: any;
 } = {}
@@ -35,11 +36,49 @@ app.get('*', ({ res }: any) => {
 	});
 })
 
+interface PackageDotJson {
+	name?: string;
+	scripts?: {
+		[id: string]: string | {
+			command: string;
+			running: boolean;
+		};
+	}
+}
+
 interface Payload {
 	action: string;
 	project: string;
 	scriptName: string;
 }
+
+interface Project {
+	projectName: string;
+	projectPath: string;
+	packageJson: Partial<PackageDotJson>;
+}
+
+interface ChildProcessCacheItem {
+	child: ChildProcess;
+	stdout: string[];
+	stderr: string[];
+}
+
+const scriptRunning = (projectPath: string, scriptName: string) => {
+	return {
+		// @ts-ignore
+		command: projectCache[projectPath].packageJson.scripts[scriptName],
+		running: childProcessCache[projectPath][scriptName] ? true : false,
+	}
+}
+
+const ProjectScriptProxy = (obj: any) => new Proxy(obj, {
+	get(target: any, name: any): any {
+		return {
+			...target,
+		}
+	}
+})
 
 const run = async () => {
 	app.listen(HTTPServerPort, () => {
@@ -47,10 +86,15 @@ const run = async () => {
 	});
 
 	if (process.env.NODE_ENV !== 'development'){
-		await open(`http://localhost:${ HTTPServerPort }`);		
+		await open(`http://localhost:${ HTTPServerPort }`);
 	}
 
 	wss.on('connection', (ws: any) => {
+		ws.send(JSON.stringify({
+			action: 'init',
+			payload: childProcessCache,
+		}));
+
 		ws.on('message', async (message: any) => {
 			message = JSON.parse(message);
 
@@ -70,39 +114,35 @@ const run = async () => {
 }
 
 const methods = {
-	async search(ws: WebSocket, folderPath: string) {
+	async search(ws: WebSocket, searchPath: string) {
 		try {
-			const folders = await asyncGlob(resolve(folderPath, '*/package.json'));
+			const projects: string[] = await asyncGlob(resolve(searchPath, '*/package.json'));
 
-			for (let packageJsonPath of folders){
-				const folderPath = packageJsonPath.replace('/package.json', '')
+			for (let packageJsonPath of projects){
+				const projectPath: string = packageJsonPath.replace('/package.json', '');
 
 				if (!projectCache[packageJsonPath]) {
-					let packageJson: string = await asyncReadFile(packageJsonPath, 'utf-8');
+					const packageJsonRaw: string = await asyncReadFile(packageJsonPath, 'utf-8');
+					const packageJsonParsed: PackageDotJson = JSON.parse(packageJsonRaw);
 
-					packageJson = JSON.parse(packageJson);
-
-					projectCache[packageJsonPath] = {
-						folderPath,
-						projectName: folderPath.split('/').pop(),
-						packageJson,
+					projectCache[packageJsonPath] = <Project>{
+						projectName: projectPath.split('/').pop(),
+						projectPath,
+						packageJson: packageJsonParsed,
 					}
 				}
 
-				for (let script in projectCache[packageJsonPath].packageJson.scripts) {
-					if (childProcessCache[folderPath] && childProcessCache[folderPath][script]) {
-						projectCache[packageJsonPath].packageJson.scripts[script] = true;
-					}
-				}
-
-				packageJsonPath = folderPath;
+				// for (let script in projectCache[packageJsonPath].packageJson.scripts) {
+				// 	if (childProcessCache[projectPath] && childProcessCache[projectPath][script]) {
+				// 		projectCache[packageJsonPath].packageJson.scripts[script] = true;
+				// 	}
+				// }
 			}
 
 			const obj = {
-				action: 'searchResult',
+				action: 'projects',
 				payload: {
-					searchPath: folderPath,
-					folders: folders.map((folder: any) => projectCache[folder]),
+					projects: projects.map(project => projectCache[project]),
 				}
 			}
 
@@ -122,6 +162,8 @@ const methods = {
 			});
 
 			child.stdout.on('data', data => {
+				childProcessCache[payload.project][payload.scriptName].stdout.push(data.toString('utf8'));
+
 				ws.send(JSON.stringify({
 					action: 'childStdout',
 					payload: {
@@ -133,6 +175,8 @@ const methods = {
 			})
 
 			child.stderr.on('data', data => {
+				childProcessCache[payload.project][payload.scriptName].stderr.push(data.toString('utf8'));
+
 				ws.send(JSON.stringify({
 					action: 'childStderr',
 					payload: {
@@ -155,7 +199,12 @@ const methods = {
 			})
 
 			childProcessCache[payload.project] = {
-				[payload.scriptName]: child,
+				[payload.scriptName]: {
+					child,
+					stdout: [],
+					stderr: [],
+
+				},
 			}
 		} catch (e) {
 			console.log(e);
